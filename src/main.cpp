@@ -91,11 +91,12 @@ void loop() {
 		// Compute average error
 		average_rpm_error = moving_average_rpm - SET_RPM;
 		
-		
 		// Move head up
         samples_head = (samples_head + 1) % NB_SAMPLES;
 
-		//Serial.println(VESCG.data.avgInputCurrent);
+		// Compute pedal position in radians
+		pedal_position = (VESCG.data.tachometer - zero_tach) / FULL_TACHOMETER_ROT * TWO_PI;
+		
 	} else
 	{
     	Serial.println("Failed to get data 1!");
