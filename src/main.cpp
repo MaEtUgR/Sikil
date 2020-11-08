@@ -5,22 +5,28 @@
 #include <VescUart.h>
 #include "wiring_private.h"
 
-#define CYCLE_COMPENSATION 1
+// Pins
+#define PEDAL_SWITCH_PIN 4
 
+//Serial Ports
 Uart SerialVesc2 (&sercom3, 0, 1, SERCOM_RX_PAD_1, UART_TX_PAD_0); // Create the new UART instance assigning it to pin 0 and 1
 
 VescUart VESCG;
 VescUart VESCM;
 
-//Serial Ports
 #define SERIALVESCG SerialVesc2
 #define SERIALVESCM Serial1
 #define DEBUGSERIAL Serial // usb serial
+
+// Options
+#define CYCLE_COMPENSATION 1
 
 #define SAMPLING_FREQ_HZ 50
 #define NB_SAMPLES 50
 
 #define SET_RPM 75
+
+#define FULL_TACHOMETER_ROT 100
 
 //variables
 float current_rpm = 0;
@@ -35,9 +41,14 @@ float rpm_samples[NB_SAMPLES];
 
 unsigned int samples_head = 0;
 
+volatile int zero_tach;
+volatile int pedal_position;
+
 int j = 0;
 
+// Functions
 
+void zero_pedal_position();
 
 
 void setup() {
@@ -58,6 +69,8 @@ void setup() {
 	
 	VESCG.setSerialPort(&SERIALVESCG);
 	VESCM.setSerialPort(&SERIALVESCM);
+
+	attachInterrupt(digitalPinToInterrupt(PEDAL_SWITCH_PIN), zero_pedal_position, RISING);
 }
 	
 
@@ -66,9 +79,6 @@ void loop() {
 	if ( VESCG.getVescValues() ) {
 
 		current_rpm = VESCG.data.rpm / 111; // /7 poles * 15.9 reduction
-
-		// Compute rpm derivative
-		derivative_rpm = abs(current_rpm - rpm_samples[samples_head]); 
 
 		// Remove old value from moving average
         moving_average_rpm = moving_average_rpm - rpm_samples[samples_head]/NB_SAMPLES;
@@ -148,3 +158,9 @@ void SERCOM3_Handler()
 {
 	SERIALVESCG.IrqHandler();
 }
+
+void zero_pedal_position(){
+	if (pedal_position > PI) {
+		zero_tach = VESCG.data.tachometer;
+	}
+};
