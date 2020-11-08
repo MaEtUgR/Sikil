@@ -9,7 +9,8 @@
 #define PEDAL_SWITCH_PIN 4
 
 //Serial Ports
-Uart SerialVesc2 (&sercom3, 0, 1, SERCOM_RX_PAD_1, UART_TX_PAD_0); // Create the new UART instance assigning it to pin 0 and 1
+// Create the new UART instance assigning it to pin 0 and 1
+Uart SerialVesc2 (&sercom3, 0, 1, SERCOM_RX_PAD_1, UART_TX_PAD_0);
 
 VescUart VESCG;
 VescUart VESCM;
@@ -28,12 +29,19 @@ VescUart VESCM;
 
 #define FULL_TACHOMETER_ROT 100
 
+#define SIN_PHASE 0
+#define SIN_INTENS 3
+
+#define KP_AVERAGE 0.1
+#define KI_AVERAGE 0.003
+#define KP_CYCLE 0.8
+
 //variables
 float current_rpm = 0;
 float moving_average_rpm = 0;
 float average_rpm_error = 0;
 float cycle_rpm_error = 0;
-float average_braking_current = 0;
+float integral_average_braking_current = 0;
 float braking_current = 0;
 float derivative_rpm = 0;
 
@@ -102,23 +110,31 @@ void loop() {
     	Serial.println("Failed to get data 1!");
 	}
 	
-	// Recompute average_braking_current
-	average_braking_current += 0.003 * average_rpm_error;
+	// Compute average braking current
+	integral_average_braking_current += KI_AVERAGE * average_rpm_error;
+	float average_braking_current = KP_AVERAGE * average_rpm_error + integral_average_braking_current;
 
 	// Braking current can't be smaller than 0
 	if (average_braking_current <= 0) {
 		average_braking_current = 0;
 	}
 
-	// Mitigate cycle compensation at start
+	// Mitigate cycle compensation at low rpm
 	float cycle_start_comp = 2 * (0.5 - ((SET_RPM - current_rpm) / SET_RPM)); 
 	cycle_start_comp = (cycle_start_comp > 1) ? 1 : cycle_start_comp;
 	cycle_start_comp = (cycle_start_comp < 0) ? 0 : cycle_start_comp; 
 
+	// Compute the sinusoidal braking
+	// Math explained here: https://www.desmos.com/calculator/wa0o7zkayl
+	float sinus_braking = (cos(2*(pedal_position + SIN_PHASE)) + SIN_INTENS - 1) / SIN_INTENS;
+
 	// Compute total braking current
 	braking_current = average_braking_current;
+
+	braking_current *= sinus_braking;
+
 	#ifdef CYCLE_COMPENSATION
-		braking_current += 0.8 * cycle_rpm_error * cycle_start_comp;
+		braking_current += KP_CYCLE * cycle_rpm_error * cycle_start_comp;
 	#endif
 	
 	if (braking_current <= 0) {
