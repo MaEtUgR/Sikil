@@ -20,19 +20,19 @@ VescUart VESCM;
 #define DEBUGSERIAL Serial // usb serial
 
 // Options
-#define CYCLE_COMPENSATION 1
+//#define CYCLE_COMPENSATION 0
 
 #define SAMPLING_FREQ_HZ 50
 #define NB_SAMPLES 50
 
 #define SET_RPM 75
 
-#define FULL_TACHOMETER_ROT 100
+#define FULL_TACHOMETER_ROT 600
 
-#define SIN_PHASE 0
-#define SIN_INTENS 3
+#define SIN_PHASE -0.1
+#define SIN_INTENS 3 // 2 is highest, infinity is lowest
 
-#define KP_AVERAGE 0.1
+#define KP_AVERAGE 0.2
 #define KI_AVERAGE 0.003
 #define KP_CYCLE 0.8
 
@@ -50,7 +50,7 @@ float rpm_samples[NB_SAMPLES];
 unsigned int samples_head = 0;
 
 volatile int zero_tach;
-volatile int pedal_position;
+float pedal_position;
 
 int j = 0;
 
@@ -103,7 +103,7 @@ void loop() {
         samples_head = (samples_head + 1) % NB_SAMPLES;
 
 		// Compute pedal position in radians
-		pedal_position = (VESCG.data.tachometer - zero_tach) / FULL_TACHOMETER_ROT * TWO_PI;
+		pedal_position = (float) (VESCG.data.tachometer - zero_tach) / FULL_TACHOMETER_ROT * TWO_PI;
 		
 	} else
 	{
@@ -115,9 +115,7 @@ void loop() {
 	float average_braking_current = KP_AVERAGE * average_rpm_error + integral_average_braking_current;
 
 	// Braking current can't be smaller than 0
-	if (average_braking_current <= 0) {
-		average_braking_current = 0;
-	}
+	integral_average_braking_current = (integral_average_braking_current <= 0) ? 0 : integral_average_braking_current;
 
 	// Mitigate cycle compensation at low rpm
 	float cycle_start_comp = 2 * (0.5 - ((SET_RPM - current_rpm) / SET_RPM)); 
@@ -129,12 +127,13 @@ void loop() {
 	float sinus_braking = (cos(2*(pedal_position + SIN_PHASE)) + SIN_INTENS - 1) / SIN_INTENS;
 
 	// Compute total braking current
-	braking_current = average_braking_current;
+	braking_current = average_braking_current * sinus_braking;
 
-	braking_current *= sinus_braking;
+	//braking_current *= sinus_braking;
 
 	#ifdef CYCLE_COMPENSATION
 		braking_current += KP_CYCLE * cycle_rpm_error * cycle_start_comp;
+		#error
 	#endif
 	
 	if (braking_current <= 0) {
@@ -159,7 +158,7 @@ void loop() {
 		Serial.print(", ");
 		Serial.print(10 * cycle_start_comp);
 		Serial.print(", ");
-		Serial.print(VESCG.data.tachometer);
+		Serial.print(sinus_braking);
 		Serial.println();
 
 		j = 0;
