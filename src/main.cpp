@@ -61,19 +61,19 @@ void zero_pedal_position();
 
 void setup() {
 
-  	DEBUGSERIAL.begin(9600);
-  	#ifdef DEBUG
-  	//SEtup debug port
-  	SetDebugSerialPort(&DEBUGSERIAL);
+	DEBUGSERIAL.begin(9600);
+	#ifdef DEBUG
+	//SEtup debug port
+	SetDebugSerialPort(&DEBUGSERIAL);
 	#endif
 
 	//Setup UART port for VESC motor
-  	SERIALVESCM.begin(115200);
+	SERIALVESCM.begin(115200);
 
 	//Setup UART Port for VESC generator
 	SERIALVESCG.begin(115200);
-  	pinPeripheral(0, PIO_SERCOM); //Assign RX function to pin 0
-  	pinPeripheral(1, PIO_SERCOM); //Assign TX function to pin 1
+	pinPeripheral(0, PIO_SERCOM); //Assign RX function to pin 0
+	pinPeripheral(1, PIO_SERCOM); //Assign TX function to pin 1
 	
 	VESCG.setSerialPort(&SERIALVESCG);
 	VESCM.setSerialPort(&SERIALVESCM);
@@ -89,18 +89,18 @@ void loop() {
 		current_rpm = VESCG.data.rpm / 111; // /7 poles * 15.9 reduction
 
 		// Remove old value from moving average
-        moving_average_rpm = moving_average_rpm - rpm_samples[samples_head]/NB_SAMPLES;
+    	moving_average_rpm = moving_average_rpm - rpm_samples[samples_head]/NB_SAMPLES;
 		// Insert new sample value
-        rpm_samples[samples_head] = current_rpm; 
-        // Compute new moving average
-        moving_average_rpm = moving_average_rpm + rpm_samples[samples_head]/NB_SAMPLES;
+		rpm_samples[samples_head] = current_rpm; 
+    	// Compute new moving average
+    	moving_average_rpm = moving_average_rpm + rpm_samples[samples_head]/NB_SAMPLES;
 		// Compute cycle error
 		cycle_rpm_error = rpm_samples[samples_head] - moving_average_rpm;
 		// Compute average error
 		average_rpm_error = moving_average_rpm - SET_RPM;
 		
 		// Move head up
-        samples_head = (samples_head + 1) % NB_SAMPLES;
+    	samples_head = (samples_head + 1) % NB_SAMPLES;
 
 		// Compute pedal position in radians
 		pedal_position = (float) (VESCG.data.tachometer - zero_tach) / FULL_TACHOMETER_ROT * TWO_PI;
